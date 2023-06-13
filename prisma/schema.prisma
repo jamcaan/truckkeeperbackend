@@ -1,0 +1,169 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                       Int    @id @default(autoincrement())
+  first_name               String
+  last_name                String
+  company_name             String
+  phone_number             String
+  email                    String @unique
+  username                 String @unique
+  password                 String
+  active                   Boolean
+  role                     UserType
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  drivers                  Driver[]
+  address                  Address[]
+
+}
+
+enum UserType {
+ USER
+ ADMIN
+}
+
+model Driver {
+  id                   Int @id @default(autoincrement())
+  first_name           String
+  last_name            String
+  truck_number         Int
+  license_number       Int
+  phone_number         String
+  email                String
+  active               Boolean
+  user_id              Int
+  user                 User @relation(fields: [user_id], references: [id])
+  
+  temp_loads           TempLoad[]
+  loads                Load[]
+  expense              Expense[]
+
+  temp_expense         TempExpense[]
+
+  pay_stub_summary     PayStubSummary[]
+
+  address              Address[]
+}
+
+model TempLoad {
+  id                     Int @id @default(autoincrement())
+  load_number            String
+  load_date              DateTime
+  Originated             String
+  Destination            String
+  percentange_charged    Int
+  amount                 Decimal
+
+  expense               Expense[]
+  temp_expense          TempExpense[]
+
+  driver_id                Int
+  driver                 Driver @relation(fields: [driver_id], references: [id])              
+
+
+}
+
+model Load {
+  id                     Int @id @default(autoincrement())
+  load_number            String
+  load_date              DateTime
+  Originated             String
+  Destination            String
+  percentange_charged    Int
+  amount                 Decimal
+  
+  driver_id              Int
+  driver                 Driver @relation(fields: [driver_id], references: [id]) 
+  
+  expenses               Expense[]
+  temp_expenses          TempExpense[]
+}
+
+
+model Expense {
+  id                     Int @id @default(autoincrement())
+  amount                 Decimal
+  expense_type           ExpenseType
+  description            String
+  expense_date           DateTime @default(now())
+  
+  load_id                Int
+  load                   Load @relation(fields: [load_id], references: [id])
+  
+  temp_load_id           Int
+  temp_load              TempLoad @relation(fields: [temp_load_id], references: [id])
+
+  driver_id              Int
+  driver                 Driver @relation(fields: [driver_id], references: [id])
+
+}
+
+
+model TempExpense {
+  id                     Int @id @default(autoincrement())
+  amount                 Decimal
+  expense_type           ExpenseType
+  description            String
+  expense_date           DateTime @default(now())
+  
+  load_id                Int
+  load                   Load @relation(fields: [load_id], references: [id])
+
+  temp_load_id           Int
+  temp_load              TempLoad @relation(fields: [temp_load_id], references: [id])
+
+  driver_id              Int
+  driver                 Driver @relation(fields: [driver_id], references: [id])
+}
+model PayStubSummary {
+  id                      Int @id @default(autoincrement())
+  payStub_date            DateTime @default(now())
+  loads_number            String[]
+  loads_date              DateTime[]
+  Originated              String[]
+  destination             String[]
+  percentage_charged      Int[]
+  amount                  Decimal[]
+  total_amount            Decimal
+  total_commission        Decimal
+  total_expenses          Decimal
+  net_amount              Decimal
+  status                  String
+
+  driver_id               Int
+  driver                  Driver @relation(fields: [driver_id], references: [id])
+}
+
+enum ExpenseType {
+  GAS
+  INSURACE
+  OTHER
+}
+
+model Address {
+  id                   Int @id @default(autoincrement())
+  street               String
+  state                String
+  city                 String
+  zip_code             String
+
+  user_id             Int
+  user                User @relation(fields: [user_id], references: [id])
+
+  driver_id           Int
+  driver              Driver @relation(fields: [driver_id], references: [id])
+}
+
+
