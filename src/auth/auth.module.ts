@@ -1,4 +1,5 @@
 import {
+  Logger,
   Module,
 } from '@nestjs/common';
 import { AuthController } from './auth.controller';
@@ -23,8 +24,9 @@ import { JwtStrategy } from './dto/jwt.strategy';
   controllers: [AuthController],
   providers: [
     AuthService,
-    JwtStrategy
+    JwtStrategy,
+    Logger
   ],
-  exports: [JwtStrategy, PassportModule]
+  exports: [JwtStrategy, PassportModule, Logger]
 })
 export class AuthModule {}
