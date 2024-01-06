@@ -1,13 +1,19 @@
 /* eslint-disable no-empty-pattern */
 
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 import { User, UserType } from '@prisma/client';
 import { CreateAddressDto, CreateUserDto } from './dto/auth.dto';
 import jwt, { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import {v4 as uuid } from 'uuid'
+import { v4 as uuid } from 'uuid';
+import { Logger } from '@nestjs/common';
 // export interface SignupParams {
 //   firstName: string;
 //   lastName: string;
@@ -34,148 +40,58 @@ export interface CredentialParams {
 export class AuthService {
   addressIn: any;
   constructor(
-    private  prismaService: PrismaService,
-    private  jwtService: JwtService
+    private prismaService: PrismaService,
+    private jwtService: JwtService,
+    private logger: Logger,
   ) {}
-  /**
-   * 
-   * Will remove the below commented later
-   *  
-   */
-  //   async signup({}: SignupParams) {
-  //     const emailExist = await this.prismaService.user.findUnique({
-  //       where: {
-  //         email,
-  //       },
-  //     });
 
-  //     const userExist = await this.prismaService.user.findUnique({
-  //       where: {
-  //         username,
-  //       },
-  //     });
-
-  //     if (userExist || emailExist) {
-  //       throw new ConflictException();
-  //     }
-
-  //     const hashedPassword = await bcrypt.hash(password, 10);
-
-  //     const user = await this.prismaService.user.create({
-  //       data: {
-  //         first_name: firstName,
-  //         last_name: lastName,
-  //         company_name: companyName,
-  //         phone_number: phoneNumber,
-  //         email: email,
-  //         username: username,
-  //         password: hashedPassword,
-  //         role: UserType.USER,
-  //         active: true,
-  //         address: {
-  //             connect: { id: this.addressIn.id },
-  //           },
-  //       },
-  //     });
-
-  //     this.addressIn = await this.prismaService.address.createMany({
-  //         data: {
-  //             street: address.street,
-  //             state: address.state,
-  //             city: address.city,
-  //             zip_code: address.zipCode,
-  //             user_id: user.id
-  //         }
-  //     })
-
-  //     console.log('User: ', { userExist });
-
-  //     const token = await jwt.sign({
-  //         firstName,
-  //         id: user.id
-  //     }, process.env.JSON_TOKEN_KEY, {
-  //         expiresIn: 3600
-  //     })
-
-  //     return token;
-
-  //     // console.log('User: ', { userExist });
-
-  //     // console.log('Email: ', { emailExist });
-  //   }
-
-  //   async createUserWithAddress(
-  //     createUserAndAddress: CreateUserWithAddressParams,
-  //   ) {
-  //     const { user, address } = createUserAndAddress;
-
-  //     const hashedPassword = await bcrypt.hash(user.password, 10);
-  //     try {
-  //       const createdUser = await this.prismaService.user.create({
-  //         data: {
-  //           first_name: user.first_name,
-  //           last_name: user.last_name,
-  //           company_name: user.company_name,
-  //           phone_number: user.phone_number,
-  //           email: user.email,
-  //           username: user.username,
-  //           password: hashedPassword,
-  //           active: user.active,
-  //           role: UserType.USER,
-  //           address: {
-  //             create: {
-  //               street: address.street,
-  //               state: address.state,
-  //               city: address.city,
-  //               zip_code: address.zipCode,
-  //             },
-  //           },
-  //         },
-  //         include: {
-  //           address: true, // Include the associated address in the created user object
-  //         },
-  //       });
-
-  //       const token = this.tokenSerice.generateToken(user, 3600);
-
-  //       return token;
-
-  //     } catch (error) {
-  //       throw new Error(
-  //         'Failed to create user with address. Reason: ' + error.message,
-  //       );
-  //     }
-  //   }
-
-  async signup(
-    createUserAndAddress: CreateUserWithAddressParams
-  ): Promise<User> {
-    const { user, address } = createUserAndAddress;
-
-    const salt = await bcrypt.genSalt();
-    const hashedPassword = await bcrypt.hash(user.password, salt);
-    console.log('salt: ', salt);
-    console.log('hashedPassword: ', hashedPassword);
-
+  async signup(createUserAndAddress: CreateUserWithAddressParams): Promise<{
+    user: Omit<User, 'username' | 'password'>;
+  }> {
     try {
-      const createdUser = await this.prismaService.user.create({
+      // Validate input
+      if (
+        !createUserAndAddress ||
+        !createUserAndAddress.user.username ||
+        !createUserAndAddress.user.password
+      ) {
+        throw new BadRequestException('Invalid input data');
+      }
+
+      // Check if the username is already taken
+      const existingUser = await this.prismaService.user.findUnique({
+        where: { username: createUserAndAddress.user.username },
+      });
+
+      if (existingUser) {
+        throw new ConflictException('Username is already taken');
+      }
+
+      // Hash the password before saving it
+      const hashedPassword = await bcrypt.hash(
+        createUserAndAddress.user.password,
+        10,
+      );
+
+      // Create a new user in the database
+      const newUser = await this.prismaService.user.create({
         data: {
-          first_name: user.first_name,
-          last_name: user.last_name,
-          company_name: user.company_name,
-          phone_number: user.phone_number,
-          email: user.email,
-          username: user.username,
+          first_name: createUserAndAddress.user.first_name,
+          last_name: createUserAndAddress.user.last_name,
+          company_name: createUserAndAddress.user.company_name,
+          phone_number: createUserAndAddress.user.phone_number,
+          email: createUserAndAddress.user.email,
+          username: createUserAndAddress.user.username,
           password: hashedPassword,
-          active: user.active,
+          active: createUserAndAddress.user.active,
           role: UserType.USER,
           user_id: uuid(),
           address: {
             create: {
-              street: address.street,
-              state: address.state,
-              city: address.city,
-              zip_code: address.zipCode,
+              street: createUserAndAddress.address.street,
+              state: createUserAndAddress.address.state,
+              city: createUserAndAddress.address.city,
+              zip_code: createUserAndAddress.address.zipCode,
             },
           },
         },
@@ -184,39 +100,82 @@ export class AuthService {
         },
       });
 
-      const tokenPayload = {
-        id: createdUser.id,
-        email: createdUser.email,
-        role: createdUser.role,
-        first_name: createdUser.first_name,
-      };
+      /*
+      Temporarily removing accessToken from the singup.
+      TODO: more research on the best place to put with signin or signup
+      */
+      // Generate JWT token with user information
+      // const payload = { userId: newUser.id, username: newUser.username };
+      // const accessToken = await this.jwtService.sign(payload, {
+      //   expiresIn: '1h',
+      // });
 
-      // const secret = process.env.JSON_TOKEN_KEY;
-      // const token = this.tokenSerice.generateToken(tokenPayload,secret, 3600);
-      // Set the token as a cookie in the response
-      // response.cookie('token', token, { httpOnly: true });
-      
-      return createdUser;
+      // Log successful signup
+      this.logger.log(`User signed up: ${newUser.username}`);
+
+      // Exclude 'username' and 'password' fields from the returned user object
+      const { username, password, ...userWithoutSensitiveInfo } = newUser;
+
+      // Return token and user information to the frontend
+      // return { user: userWithoutSensitiveInfo, accessToken };
+
+      //Returning without accessToken
+      return { user: userWithoutSensitiveInfo };
     } catch (error) {
-      throw new Error(
-        `Failed to create user with address. Reason: ${error.message}`,
-      );
+      // Log and rethrow any unexpected errors during signup
+      this.logger.error(`Error during signup: ${error.message}`);
+      throw error;
     }
   }
 
-  async login(credentials: CredentialParams): Promise<{accessToken: string}> {
-    // Retrieve the user from the database based on the username
-    const { username, password } = credentials;
-    const user = await this.prismaService.user.findUnique({
-      where: { username },
-    });
+  async login(credentials: CredentialParams): Promise<{
+    accessToken: string;
+    userId: string;
+    username: string;
+    userRole: string;
+    expiresIn: number;
+  }> {
+    try {
+      // Validate input
+      if (!credentials || !credentials.username || !credentials.password) {
+        throw new BadRequestException('Invalid input data');
+      }
 
-    if (user && (await bcrypt.compare(password, user.password))) {
-      const payload = {username};
-      const accessToken = await this.jwtService.sign(payload)
-      return { accessToken }
-    } else {
-      throw new UnauthorizedException('Invalid credentials');
+      // Retrieve the user from the database based on the username
+      const { username, password } = credentials;
+      const user = await this.prismaService.user.findUnique({
+        where: { username },
+      });
+      // Validate user credentials
+      if (user && (await bcrypt.compare(password, user.password))) {
+        // Generate JWT token with a limited expiration time
+        const payload = { username, userId: user.id }; // Include user ID if needed
+        const accessToken = await this.jwtService.sign(payload, {
+          expiresIn: '1h',
+        });
+
+        // Log successful login
+        this.logger.log(`Successful login for user: ${username}`);
+
+        // Return token to the frontend
+        return {
+          userId: user.user_id,
+          username: user.username,
+          userRole: user.role,
+          accessToken,
+          expiresIn: 3600,
+        };
+      } else {
+        // Log failed login attempt
+        this.logger.warn(`Failed login attempt for user: ${username}`);
+
+        // Throw a generic unauthorized exception to avoid leaking information
+        throw new UnauthorizedException('Invalid username or password');
+      }
+    } catch (error) {
+      // Log and rethrow any unexpected errors
+      this.logger.error(`Error during login: ${error.message}`);
+      throw error;
     }
   }
 }

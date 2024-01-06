@@ -20,16 +20,18 @@ export class AuthController {
   // signup(@Body() body: CreateUserWithAddressParams,  req: Response){
   //     return this.authService.signup(body, req)
   // }
+
   @Post('/signup')
   async signup(@Body() createUserAndAddress: CreateUserWithAddressParams) {
-    this.authService.signup(createUserAndAddress);
+    return this.authService.signup(createUserAndAddress);
 
     // Set the token as a cookie in the response
   }
 
   @Post('/signin')
-  async login(@Body() credentials: CredentialParams): Promise<{accessToken: string}>{
+  async login(
+    @Body() credentials: CredentialParams,
+  ): Promise<{ accessToken: string }> {
     return this.authService.login(credentials);
-
   }
 }
